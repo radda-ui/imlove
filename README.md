@@ -21,7 +21,7 @@ A pure Lua 5.1 simple immediate mode GUI implementation for LÖVE 2D.  Inspired 
 *   **there are a ton of bugs:** i hope you would help fix this library.
 
 ## Example Screenshot
-![imlove Example](https://raw.githubusercontent.com/radda09/imlove/main/screenshot.png)
+![imlove Example](https://github.com/radda-ui/imlove/blob/master/ScreenShot.png?raw=true)
 
 ## Installation
 
