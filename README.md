@@ -3,7 +3,7 @@
 A pure Lua 5.1 simple immediate mode GUI implementation for LÖVE 2D.  Inspired by [Dear ImGui](https://github.com/ocornut/imgui).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub Stars](https://img.shields.io/github/stars/radda09/imlove?style=social)](https://github.com/radda09/imlove)
+[![GitHub Stars](https://img.shields.io/github/stars/radda-ui/imlove?style=social)](https://github.com/radda-ui/imlove)
 
 ## Features
 
