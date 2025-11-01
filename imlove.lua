@@ -2,7 +2,7 @@ local bit = require("bit")
 local imlove = {
     _VERSION = "0.1.3",
     _DESCRIPTION = "A pure Lua 5.1 simple implementation of imgui for LÖVE 2D hence the name imlove",
-    _URL = "https://github.com/radda09/imlove",
+    _URL = "https://github.com/radda-ui/imlove",
     _LICENSE = [[
         MIT License
 
@@ -950,4 +950,5 @@ end
 function imlove.wheel(_, y)
     mouse.wheel = y
 end
+
 return imlove
