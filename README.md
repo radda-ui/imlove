@@ -1,255 +1,378 @@
 # imlove
 
-A pure Lua 5.1 simple immediate mode GUI implementation for LÖVE 2D.  Inspired by [Dear ImGui](https://github.com/ocornut/imgui).
+A pure Lua 5.1 immediate mode GUI library for [LÖVE 2D](https://love2d.org/), inspired by [Dear ImGui](https://github.com/ocornut/imgui). Single file, no external dependencies beyond the built-in `bit` library.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/radda-ui/imlove?style=social)](https://github.com/radda-ui/imlove)
 
+---
+
 ## Features
 
-*   **Lightweight:**  Minimal dependencies, just the `bit` library.
-*   **Easy to Integrate:** Simple API designed for LÖVE 2D.
-*   **Immediate Mode:**  GUI state is not retained by the library.  Your application manages the data.
-*   **Customizable:**  Styling options for colors, padding, and more.
-*   **Basic Widgets:** Buttons, Sliders, Checkboxes, Text Panels, Images, Selectables, Collapsing Headers, Progress Bars, Separators.
-*   **Windowing:** Supports draggable and resizable windows and popups.
-*   **Scrolling:** Automatic scrollbars when content exceeds window bounds.
-*   **Layout Helpers:** Sameline for horizontal layout.
-*   **Save/Load:**  Basic UI state persistence.
+- **Single file** — drop `imlove.lua` into your project and require it
+- **Immediate mode** — no retained widget state, your app owns all data
+- **Solid IO** — pending/promote/clear input pipeline, no input bleeding between windows
+- **Z-order** — windows stack correctly, topmost window captures all input
+- **Widgets** — Button, Label, Checkbox, RadioButton, Slider, SliderInt, InputText, ProgressBar, Selectable, SelectableImage, Image, CollapsingHeader, ColorPicker
+- **Layout** — SameLine, Separator, Spacing, Indent, Unindent, TextWrapped
+- **Windows** — draggable, resizable, minimizable, closeable, scrollable
+- **Menu bar** — BeginMenuBar / BeginMenu / MenuItem / MenuSeparator
+- **Popups** — modal-style windows, auto-close on outside click
+- **Tooltips** — IsItemHovered / SetTooltip / BeginTooltip
+- **Style system** — PushStyleColor / PopStyleColor, PushStyleVar / PopStyleVar, PushFont / PopFont
+- **Pseudo docking** — opt-in snap-to-edges and snap-to-windows with visual preview
+- **Taskbar** — built-in window manager bar, no external state needed
+- **Save / Load layout** — persists window positions, sizes and state to the LÖVE save directory
 
-## Bugs:
-*   **there are a ton of bugs:** i hope you would help fix this library.
+---
 
-## Example Screenshot
-![imlove Example](https://github.com/radda-ui/imlove/blob/master/ScreenShot.png?raw=true)
-
-## Installation
-
-1.  Download the `imlove.lua` file and place it in your project directory.
-2.  Require the library in your `main.lua`:
-
-    ```lua
-    local imlove = require("imlove")
-    ```
-
-## Usage
-
-Here's a basic example of how to use `imlove` in your LÖVE 2D project:
+## Quick Start
 
 ```lua
-local imlove = require("imlove")
+local im = require "imlove"
 
-local open = true
-local open2 = true
-local sliderValue = 50
-local checked = false
+local checked  = false
+local sliderV  = 0.5
+local inputStr = "hello"
 
 function love.load()
-    imlove.init()
-    -- Load a font for better readability (optional)
-    -- local font = love.graphics.newFont(16)
-    -- love.graphics.setFont(font)
+    love.window.setMode(800, 600)
+    im.Init()
 end
 
 function love.update(dt)
-    imlove.newFrame()
-
-    --Imlove Window1
-    open = imlove.Begin("Window1", open, 0, 0, 150, 150)
-    if open then
-        imlove.TextPanel("This is a text panel.\nYou can put multiple lines of text here.")
-
-        imlove.End()
-    end
-        --Imlove Window2
-    if imlove.Begin("Window2", open2, 150, 0, 300, 200) then
-        if imlove.Button("Click Me") then
-            print("Button Clicked!")
-        end
-
-        sliderValue = imlove.Slider("Slider", sliderValue, 0, 100)
-        checked = imlove.Checkbox("Checkbox", checked)
-
-        imlove.TextPanel("This is a text panel.\nYou can put multiple lines of text here.")
-
-        imlove.End()
-    end
-    imlove.endFrame()
+    im.Update(dt)
 end
 
 function love.draw()
-    love.graphics.clear(0.2, 0.2, 0.2)
-    imlove.renderDrawList()
-end
+    love.graphics.clear(0.12, 0.12, 0.15)
+    im.BeginFrame()
 
-function love.keypressed(key)
-    imlove.keypressed(key)
-    if "w" == key then
-        open = not open
-        print(key)
+    if im.Begin("My Window") then
+        im.Label("Hello from imlove!")
+        if im.Button("Click me") then print("clicked") end
+        checked  = im.Checkbox("Enable", checked)
+        sliderV  = im.Slider("Speed", sliderV, 0, 1)
+        inputStr = im.InputText("Name", inputStr)
     end
-    if "q" == key then
-        open2 = not open2
-    end
+    im.End()
+
+    im.EndFrame()
 end
 
-function love.keyreleased(key)
-    imlove.keyreleased(key)
-end
-
-function love.textinput(text)
-    imlove.textinput(text)
-end
-
-function love.mousepressed(x, y, button)
-     imlove.pressed(button)
-end
-
-function love.mousereleased(x, y, button)
-    imlove.released(button)
-end
-
-function love.wheel(x, y)
-    imlove.wheel(x, y)
-end
-
+function love.mousepressed(x,y,b)  im.MousePressed(x,y,b)  end
+function love.mousereleased(x,y,b) im.MouseReleased(x,y,b) end
+function love.wheelmoved(x,y)      im.WheelMoved(x,y)       end
+function love.keypressed(k,s)      im.KeyPressed(k,s)        end
+function love.textinput(t)         im.TextInput(t)           end
 ```
+
+---
+
+## Installation
+
+Download `imlove.lua` and place it in your project directory. That is all.
+
+```lua
+local im = require "imlove"
+```
+
+---
 
 ## API Reference
 
 ### Initialization
 
-*   `imlove.init()`: Initializes the library.  Call this once at the start of your application.
+```lua
+im.Init()          -- call once in love.load()
+im.Update(dt)      -- call in love.update(dt)
+```
 
-### Frame Management
+### Frame
 
-*   `imlove.newFrame()`: Starts a new GUI frame.  Call this at the beginning of your `love.update` function.
-*   `imlove.endFrame()`: Ends the current GUI frame.  Call this at the end of your `love.update` function.
+```lua
+im.BeginFrame()    -- call at the start of love.draw()
+im.EndFrame()      -- call at the end of love.draw() — also triggers rendering
+```
 
-### Rendering
+### Windows
 
-*   `imlove.renderDrawList()`: Renders the GUI elements.  Call this in your `love.draw` function.
+```lua
+-- name supports "Title##id" syntax to separate display title from stable id
+-- options table (all optional):
+--   x, y, w, h        initial position and size
+--   open               bool — false hides the window
+--   noTitleBar         bool
+--   noResize           bool
+--   noMove             bool
+--   noScrollbar        bool
+--   noClose            bool
+--   noMinimize         bool
+--   noTaskbar          bool — exclude from taskbar
+--   dockable           bool — enable pseudo docking
+--
+-- Returns visible (bool), open (bool)
+local visible, open = im.Begin("My Window", options)
+if visible then
+    -- widgets here
+end
+im.End()
+```
 
-### Windowing
-
-*   `imlove.Begin(title, open, x, y, w, h)`: Begins a window.
-    *   `title`:  The title of the window (string).  Used as a unique ID.
-    *   `open`:  A boolean value indicating whether the window is open.  Pass a variable, and imlove will update it when the close button is pressed.
-    *   `x`, `y`: The initial position of the window.
-    *   `w`, `h`: The initial width and height of the window.
-    *   Returns `true` if the window is open, `false` otherwise.
-
-*   `imlove.End()`: Ends a window.
-
-*   `imlove.BeginPopup(title)`: Begins a popup window.
-    *   `title`: The title of the popup (string). Used as a unique ID.
-    *   Returns `true` if the popup is open and should be drawn, `false` otherwise.
-*   `imlove.EndPopup()`: Ends a popup window.
-*   `imlove.openPopup(title)`: Opens a popup window.
-*   `imlove.closePopup(title)`: Closes a popup window.
+**Tracking close button:**
+```lua
+local visible, open = im.Begin("Settings##s", {open = showSettings})
+showSettings = open   -- picks up X button clicks automatically
+if visible then ... end
+im.End()
+```
 
 ### Widgets
 
-*   `imlove.Button(label)`: Creates a button.
-    *   `label`: The text label of the button.
-    *   Returns `true` if the button was clicked, `false` otherwise.
+```lua
+-- Label
+im.Label("Some text")
+im.LabelColored("Red text", 1, 0, 0)
+im.TextWrapped("Long text that wraps automatically.")
 
-*   `imlove.Slider(label, value, min, max)`: Creates a slider.
-    *   `label`: The text label of the slider.
-    *   `value`: The current value of the slider.
-    *   `min`, `max`: The minimum and maximum values of the slider.
-    *   Returns the new value of the slider.
+-- Button  (btnW, btnH are optional)
+if im.Button("Click", btnW, btnH) then ... end
 
-*   `imlove.Checkbox(label, checked)`: Creates a checkbox.
-    *   `label`: The text label of the checkbox.
-    *   `checked`: A boolean value indicating whether the checkbox is checked.
-    *   Returns the new checked state of the checkbox.
+-- Checkbox  — returns value, changed
+checked = im.Checkbox("Enable", checked)
 
-*   `imlove.TextPanel(text, alignment)`: Creates a text panel.
-    *   `text`: The text to display in the panel.
-    *   `alignment` (optional): "left", "center", or "right". Defaults to "left".
+-- RadioButton  — returns current, changed
+radio = im.RadioButton("Option A", radio, 1)
+radio = im.RadioButton("Option B", radio, 2)
 
-*   `imlove.Image(image, quad, w, h)`:  Displays an image.
-    *   `image`:  LÖVE Image object.
-    *   `quad` (optional): LÖVE Quad object to display a portion of the image.
-    *   `w` (optional): Width to draw the image.  Defaults to image width.
-    *   `h` (optional): Height to draw the image.  Defaults to image height.
+-- Sliders  — returns new value
+slFloat = im.Slider("Float", slFloat, 0, 1)
+slFloat = im.Slider("Float", slFloat, 0, 1, "%.3f")  -- custom format
+slInt   = im.SliderInt("Int", slInt, 0, 100)
 
-*   `imlove.ButtonImage(image, quad, w, h)`: Creates a button with an image.
-     *   `image`:  LÖVE Image object.
-    *   `quad` (optional): LÖVE Quad object to display a portion of the image.
-    *   `w` (optional): Width to draw the image.  Defaults to image width.
-    *   `h` (optional): Height to draw the image.  Defaults to image height.
-    *   Returns `true` if the button was clicked, `false` otherwise.
+-- InputText  — returns new string
+text = im.InputText("Name", text)
+text = im.InputText("Name", text, maxLen)
+-- Supports: typing, backspace, delete, left/right/home/end,
+--           shift+arrows for selection, Ctrl+A/C/X/V, cursor blink
 
-*   `imlove.Selectable(label, selected)`: Creates a selectable item (like in a listbox).
-    *   `label`: The text label of the selectable.
-    *   `selected`: A boolean value indicating whether the item is selected.
-    *   Returns the new selected state of the item.
+-- ProgressBar
+im.ProgressBar(fraction)                          -- 0.0 to 1.0
+im.ProgressBar(fraction, barW, barH, "overlay")   -- all optional
 
-*   `imlove.SelectableImage(image, quad, selected, size)`: Creates a selectable item with an image.
-    *   `image`: LÖVE Image object.
-    *   `quad` (optional): LÖVE Quad object to display a portion of the image.
-    *   `selected`: A boolean value indicating whether the item is selected.
-    *   `size` (optional): A number for width and height or a table containing width and height {w, h}. Defaults to the image's width and height.
-    *   Returns the new selected state of the item.
+-- Selectable  — returns selected, clicked
+selected = im.Selectable("Item", selected)
+selected = im.Selectable("Item", selected, rowW, rowH)
 
-*   `imlove.CollapsingHeader(label, open)`: Creates a collapsing header.
-    *   `label`: The text label of the header.
-    *   `open`: A boolean value indicating whether the header is open.
-    *   Returns the new open state of the header.
+-- CollapsingHeader  — returns open
+open = im.CollapsingHeader("Section", open)
 
-*   `imlove.ProgressBar(label, fraction, value, max)`: Creates a progress bar.
-    *   `label`: The text label of the progress bar.
-    *   `fraction`: A value between 0 and 1 indicating the progress.
-    *   `value`: The current value of the progress.
-    *   `max`: The maximum value of the progress.
+-- Image
+im.Image(image)
+im.Image(image, quad)           -- quad is optional
+im.Image(image, quad, w, h)     -- dispW, dispH override size
 
-*   `imlove.Separator(label, size, position)`: Creates a separator line.
-    *   `label` (optional): A label to display on the separator line.
-    *   `size` (optional): The height of the separator. Defaults to the font height.
-    *   `position` (optional): "left", "right", or "middle".  Defaults to "left".
+-- SelectableImage  — returns selected, clicked
+selected = im.SelectableImage("label", image, quad, selected)
+selected = im.SelectableImage("label", image, quad, selected, dispW, dispH)
+
+-- ColorPicker  — returns updated color table
+-- pass {r,g,b} for RGB or {r,g,b,a} for RGBA — alpha bar appears automatically
+color = im.ColorPicker("Tint", color)
+```
 
 ### Layout
 
-*   `imlove.Sameline(spacing)`:  Places the next widget on the same line as the previous one.
-    *   `spacing` (optional):  The spacing between the items. Defaults to `imlove.style.itemSpacing`.
-
-### Input
-
-*   `imlove.keypressed(key)`:  Handles key pressed events.  Call this in your `love.keypressed` function.
-*   `imlove.keyreleased(key)`: Handles key released events. Call this in your `love.keyreleased` function.
-*   `imlove.textinput(text)`: Handles text input events. Call this in your `love.textinput` function.
-*   `imlove.pressed(x, y, button)`: Handles mouse pressed events. Call this in your `love.mousepressed` function.
-*   `imlove.released(x, y, button)`: Handles mouse released events. Call this in your `love.mousereleased` function.
-*   `imlove.wheel(x, y)`: Handles mouse wheel events. Call this in your `love.wheel` function.
-
-### State Management
-
-*   `imlove.save()`: Saves the UI state (window positions and sizes) to `ui_state.lua`.
-*   `imlove.load()`: Loads the UI state from `ui_state.lua`. Call this after `imlove.init()`.
-
-### Styling
-
-The `imlove.style` table contains various styling options:
-
-*   `minWindowWidth`, `minWindowHeight`: Minimum window dimensions.
-*   `minWidth`, `minHeight`: Minimum widget dimensions.
-*   `padding`, `margin`, `itemSpacing`: Spacing values.
-*   `globalAlpha`: Global alpha transparency for all GUI elements.
-*   `resizeHandleSize`: Size of the window resize handle.
-*   `scrollbarWidth`, `scrollbarMinHeight`: Scrollbar dimensions.
-
-The `imlove.colors` table contains color definitions for various GUI elements.  Each color is a table with four values: `{r, g, b, a}` (red, green, blue, alpha), where each value is between 0 and 1.  Example:
-
 ```lua
-imlove.colors.Text = {1.00, 1.00, 1.00, 1.00} -- White text
+im.SameLine()           -- next widget on same line
+im.SameLine(spacing)    -- custom gap in pixels
+im.Separator()          -- horizontal divider line
+im.Spacing()            -- extra vertical space
+im.Spacing(20)          -- custom pixels
+im.Indent()             -- indent by style.IndentSpacing
+im.Indent(amount)       -- custom pixels
+im.Unindent()
+im.Unindent(amount)
 ```
 
-## Contributing
+### Menu Bar
 
-Contributions are welcome!  Please submit pull requests with bug fixes, new features, or improvements .
+```lua
+if im.Begin("Window") then
+    if im.BeginMenuBar() then
+        if im.BeginMenu("File") then
+            if im.MenuItem("Save", "Ctrl+S") then ... end
+            if im.MenuItem("Quit", nil, enabled) then ... end
+            im.MenuSeparator()
+            im.EndMenu()
+        end
+        im.EndMenuBar()
+    end
+    -- widgets
+end
+im.End()
+```
+
+### Popups
+
+```lua
+-- trigger
+if im.Button("Open") then im.OpenPopup("Alert##pop") end
+
+-- draw (outside any Begin/End is fine)
+if im.BeginPopup("Alert##pop", {w=240, h=120}) then
+    im.Label("Are you sure?")
+    if im.Button("OK") then im.ClosePopup("Alert##pop") end
+    im.EndPopup()
+end
+```
+
+Popups auto-close when the user clicks outside them.
+
+### Tooltips
+
+```lua
+-- simple text tooltip on the last widget
+if im.Button("Save") then ... end
+im.SetTooltip("Save the file\nCtrl+S")
+
+-- check hover manually
+if im.IsItemHovered() then
+    -- do something
+end
+
+-- rich tooltip with widgets inside
+im.Image(icon, nil, 32, 32)
+if im.BeginTooltip() then
+    im.Label("My Icon")
+    im.EndTooltip()
+end
+```
+
+### Style
+
+```lua
+-- override colors for a section
+im.PushStyleColor("button",      {0.8, 0.2, 0.2, 1})
+im.PushStyleColor("buttonHover", {1.0, 0.3, 0.3, 1})
+if im.Button("Red") then end
+im.PopStyleColor(2)
+
+-- override style vars
+im.PushStyleVar("padding",      16)
+im.PushStyleVar("widgetRound",  8)
+if im.Button("Rounded") then end
+im.PopStyleVar(2)
+
+-- switch font for a section
+im.PushFont(bigFont)
+im.Label("Big text")
+im.PopFont()
+```
+
+All color keys are in `im.style.col`. All var keys are in `im.style`.
+
+### ID System
+
+When multiple widgets share the same label, use `##` to give them distinct IDs:
+
+```lua
+im.Button("OK##dialog1")
+im.Button("OK##dialog2")
+```
+
+The part after `##` is the ID, the part before is the display label. Use `###` to make the entire string the ID (display label ignored for ID purposes).
+
+For dynamic lists use `PushID` / `PopID`:
+
+```lua
+for i = 1, 10 do
+    im.PushID(i)
+    if im.Button("Select") then ... end
+    im.PopID()
+end
+```
+
+### Taskbar
+
+```lua
+-- call once per frame, outside Begin/End
+im.Taskbar()
+im.Taskbar({pos="top"})   -- "bottom" (default) or "top"
+
+-- exclude a window from the taskbar
+im.Begin("HUD##hud", {noTaskbar=true})
+```
+
+Click behaviour: focused window → minimize, minimized → restore, closed → reopen.
+
+### Pseudo Docking
+
+```lua
+-- opt-in per window
+im.Begin("Panel", {dockable=true})
+```
+
+Drag a dockable window near another dockable window or a screen edge — a blue ghost preview appears. Release to snap. Left/right docking matches heights, top/bottom docking matches widths. Drag away to undock.
+
+### Save / Load Layout
+
+```lua
+im.SaveLayout()              -- saves to imlove_layout.lua
+im.SaveLayout("my_ui.lua")   -- custom filename
+
+im.LoadLayout()              -- loads from imlove_layout.lua
+im.LoadLayout("my_ui.lua")
+```
+
+Files are written to and read from the LÖVE save directory (`love.filesystem`). Saves: position, size, scroll, open/closed, minimized, and docking state. Call `LoadLayout` after `Init`.
+
+---
+
+## Style Reference
+
+Key entries in `im.style`:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `padding` | 8 | Inner widget padding |
+| `itemSpacingY` | 4 | Vertical gap between widgets |
+| `itemSpacingX` | 6 | Horizontal gap for SameLine |
+| `windowPadding` | 10 | Inner window padding |
+| `titleBarH` | 24 | Title bar height |
+| `scrollbarW` | 10 | Scrollbar width |
+| `snapDist` | 14 | Docking snap threshold in px |
+| `taskbarH` | 32 | Taskbar height |
+| `taskbarPos` | `"bottom"` | `"bottom"` or `"top"` |
+| `windowRound` | 6 | Window corner rounding |
+| `widgetRound` | 4 | Widget corner rounding |
+| `font` | default | Set via `Init()`, override with `PushFont` |
+
+Colors live in `im.style.col`. Example:
+
+```lua
+im.style.col.windowBg = {0.10, 0.10, 0.12, 1.0}
+im.style.col.button   = {0.20, 0.40, 0.80, 1.0}
+```
+
+---
+
+## Input Callbacks
+
+Wire these in your `main.lua`:
+
+```lua
+function love.mousepressed(x,y,b)  im.MousePressed(x,y,b)  end
+function love.mousereleased(x,y,b) im.MouseReleased(x,y,b) end
+function love.wheelmoved(x,y)      im.WheelMoved(x,y)       end
+function love.keypressed(k,s)      im.KeyPressed(k,s)        end
+function love.textinput(t)         im.TextInput(t)           end
+```
+
+---
 
 ## License
 
-This library is licensed under the MIT License. See the `LICENSE` for details.(included in the library)
+MIT — see the license header inside `imlove.lua`.
+
+Copyright (c) 2024 Salem Raddaoui
