@@ -27,7 +27,7 @@ A pure Lua 5.1 immediate mode GUI library for [LÖVE 2D](https://love2d.org/), i
 ---
 
 ## Example Screenshot
-![imlove Example](https://raw.githubusercontent.com/radda-ui/imlove/main/image.png)
+![imlove Example](https://raw.githubusercontent.com/radda-ui/imlove/master/image.png)
 ## Quick Start
 
 ```lua
