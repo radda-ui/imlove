@@ -1,6 +1,8 @@
 # imlove
 
-A pure Lua 5.1 immediate mode GUI library for [LÖVE 2D](https://love2d.org/), inspired by [Dear ImGui](https://github.com/ocornut/imgui). Single file, no external dependencies beyond the built-in `bit` library.
+A pure Lua 5.1 immediate mode GUI library for [LÖVE 2D](https://love2d.org/), inspired by [Dear ImGui](https://github.com/ocornut/imgui). Single file, no external dependencies beyond the built-in `bit` library and `utf8`.
+
+**v0.3.0 is a major architectural upgrade:** It features a **zero-allocation rendering loop** on the hot path. Widgets pool their state, meaning `imlove` generates virtually zero Lua garbage collection overhead during normal operation.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/radda-ui/imlove?style=social)](https://github.com/radda-ui/imlove)
@@ -9,25 +11,21 @@ A pure Lua 5.1 immediate mode GUI library for [LÖVE 2D](https://love2d.org/), i
 
 ## Features
 
-- **Single file** — drop `imlove.lua` into your project and require it
-- **Immediate mode** — no retained widget state, your app owns all data
-- **Solid IO** — pending/promote/clear input pipeline, no input bleeding between windows
-- **Z-order** — windows stack correctly, topmost window captures all input
-- **Widgets** — Button, Label, Checkbox, RadioButton, Slider, SliderInt, InputText, ProgressBar, Selectable, SelectableImage, Image, CollapsingHeader, ColorPicker
-- **Layout** — SameLine, Separator, Spacing, Indent, Unindent, TextWrapped
-- **Windows** — draggable, resizable, minimizable, closeable, scrollable
-- **Menu bar** — BeginMenuBar / BeginMenu / MenuItem / MenuSeparator
-- **Popups** — modal-style windows, auto-close on outside click
-- **Tooltips** — IsItemHovered / SetTooltip / BeginTooltip
-- **Style system** — PushStyleColor / PopStyleColor, PushStyleVar / PopStyleVar, PushFont / PopFont
-- **Pseudo docking** — opt-in snap-to-edges and snap-to-windows with visual preview
-- **Taskbar** — built-in window manager bar, no external state needed
-- **Save / Load layout** — persists window positions, sizes and state to the LÖVE save directory
+- **Single file** — drop `imlove.lua` into your project and require it.
+- **Immediate mode** — no retained widget state to sync, your app owns all the data.
+- **Zero-Allocation Hot Path** — aggressive internal pooling means UI rendering won't trigger Lua GC stutters.
+- **Z-order & Input Isolation** — windows stack correctly, topmost window captures all input.
+- **Widgets** — Button, Label, Checkbox, RadioButton, Slider, SliderInt, InputText, InputInt, InputFloat, Combo (Dropdown), ProgressBar, Selectable, SelectableImage, Image, CollapsingHeader.
+- **Layout** — SameLine, Separator, Spacing, Indent, Unindent, TextWrapped.
+- **Windows** — draggable, resizable, minimizable, closeable, scrollable, with a robust Flag system.
+- **Menu bar** — BeginMenuBar / BeginMenu / MenuItem / MenuSeparator.
+- **Popups** — modal-style dropdowns and windows, auto-close on outside click.
+- **Tooltips** — IsItemHovered / SetTooltip / BeginTooltip.
+- **Style system** — PushStyleColor / PopStyleColor, PushStyleVar / PopStyleVar, PushFont / PopFont.
+- **Save / Load layout** — persists window positions, sizes, and open/minimized state to the LÖVE save directory.
 
 ---
 
-## Example Screenshot
-![imlove Example](https://raw.githubusercontent.com/radda-ui/imlove/master/image.png)
 ## Quick Start
 
 ```lua
@@ -36,6 +34,7 @@ local im = require "imlove"
 local checked  = false
 local sliderV  = 0.5
 local inputStr = "hello"
+local comboIdx = 1
 
 function love.load()
     love.window.setMode(800, 600)
@@ -50,11 +49,14 @@ function love.draw()
     love.graphics.clear(0.12, 0.12, 0.15)
     im.BeginFrame()
 
-    if im.Begin("My Window") then
+    -- Options table is nil, followed by optional layout flags
+    if im.Begin("My Window", nil, im.NoCollapse) then
         im.Label("Hello from imlove!")
         if im.Button("Click me") then print("clicked") end
+
         checked  = im.Checkbox("Enable", checked)
         sliderV  = im.Slider("Speed", sliderV, 0, 1)
+        comboIdx = im.Combo("Options", comboIdx, {"Apple", "Banana", "Cherry"})
         inputStr = im.InputText("Name", inputStr)
     end
     im.End()
@@ -62,18 +64,19 @@ function love.draw()
     im.EndFrame()
 end
 
+-- Wire LÖVE inputs to imlove
 function love.mousepressed(x,y,b)  im.MousePressed(x,y,b)  end
 function love.mousereleased(x,y,b) im.MouseReleased(x,y,b) end
-function love.wheelmoved(x,y)      im.WheelMoved(x,y)       end
-function love.keypressed(k,s)      im.KeyPressed(k,s)        end
-function love.textinput(t)         im.TextInput(t)           end
+function love.wheelmoved(x,y)      im.WheelMoved(x,y)      end
+function love.keypressed(k,s)      im.KeyPressed(k)        end
+function love.textinput(t)         im.TextInput(t)         end
 ```
 
 ---
 
 ## Installation
 
-Download `imlove.lua` and place it in your project directory. That is all.
+Download `imlove.lua` and place it in your project directory.
 
 ```lua
 local im = require "imlove"
@@ -87,47 +90,32 @@ local im = require "imlove"
 
 ```lua
 im.Init()          -- call once in love.load()
-im.Update(dt)      -- call in love.update(dt)
+im.Update(dt)      -- call in love.update(dt) for cursor blinking and timers
 ```
 
 ### Frame
 
 ```lua
 im.BeginFrame()    -- call at the start of love.draw()
-im.EndFrame()      -- call at the end of love.draw() — also triggers rendering
+im.EndFrame()      -- call at the end of love.draw() — triggers batched rendering
 ```
 
-### Windows
+### Windows & Flags
 
 ```lua
--- name supports "Title##id" syntax to separate display title from stable id
--- options table (all optional):
---   x, y, w, h        initial position and size
---   open               bool — false hides the window
---   noTitleBar         bool
---   noResize           bool
---   noMove             bool
---   noScrollbar        bool
---   noClose            bool
---   noMinimize         bool
---   noTaskbar          bool — exclude from taskbar
---   dockable           bool — enable pseudo docking
---
--- Returns visible (bool), open (bool)
-local visible, open = im.Begin("My Window", options)
+-- Window ID is the title, or use "Title##id" to separate display title from stable ID
+-- Signature: im.Begin(name, options_table, ...flags)
+local options = { x = 100, y = 100, w = 300, h = 400, open = true }
+
+local visible, open = im.Begin("My Window", options, im.NoResize, im.NoTitleBar)
 if visible then
-    -- widgets here
+    -- draw widgets here
 end
 im.End()
 ```
 
-**Tracking close button:**
-```lua
-local visible, open = im.Begin("Settings##s", {open = showSettings})
-showSettings = open   -- picks up X button clicks automatically
-if visible then ... end
-im.End()
-```
+**Available Flags:**
+`im.NoTitleBar`, `im.NoResize`, `im.NoMove`, `im.NoScrollbar`, `im.NoBackground`, `im.NoClose`, `im.NoMinimize`
 
 ### Widgets
 
@@ -137,63 +125,46 @@ im.Label("Some text")
 im.LabelColored("Red text", 1, 0, 0)
 im.TextWrapped("Long text that wraps automatically.")
 
--- Button  (btnW, btnH are optional)
+-- Button (btnW, btnH are optional)
 if im.Button("Click", btnW, btnH) then ... end
 
--- Checkbox  — returns value, changed
+-- Checkbox & Radio
 checked = im.Checkbox("Enable", checked)
-
--- RadioButton  — returns current, changed
 radio = im.RadioButton("Option A", radio, 1)
 radio = im.RadioButton("Option B", radio, 2)
 
--- Sliders  — returns new value
-slFloat = im.Slider("Float", slFloat, 0, 1)
-slFloat = im.Slider("Float", slFloat, 0, 1, "%.3f")  -- custom format
+-- Sliders
+slFloat = im.Slider("Float", slFloat, 0, 1, "%.3f")  -- optional format string
 slInt   = im.SliderInt("Int", slInt, 0, 100)
 
--- InputText  — returns new string
-text = im.InputText("Name", text)
-text = im.InputText("Name", text, maxLen)
--- Supports: typing, backspace, delete, left/right/home/end,
---           shift+arrows for selection, Ctrl+A/C/X/V, cursor blink
+-- Text & Numeric Inputs
+text = im.InputText("Name", text, maxLen)  -- Supports UTF-8, Clipboard, Selection
+val  = im.InputInt("Age", val, 1)          -- Stepper buttons (+/-) included
+val  = im.InputFloat("Weight", val, 0.5)
+
+-- Combo (Dropdown Menu)
+-- returns the new selected index and a boolean if it just changed
+current_idx, changed = im.Combo("Fruit", current_idx, {"Apple", "Orange", "Banana"})
 
 -- ProgressBar
-im.ProgressBar(fraction)                          -- 0.0 to 1.0
-im.ProgressBar(fraction, barW, barH, "overlay")   -- all optional
+im.ProgressBar(fraction, barW, barH, "overlay text")
 
--- Selectable  — returns selected, clicked
+-- Selectable (Lists)
 selected = im.Selectable("Item", selected)
-selected = im.Selectable("Item", selected, rowW, rowH)
-
--- CollapsingHeader  — returns open
 open = im.CollapsingHeader("Section", open)
 
--- Image
-im.Image(image)
-im.Image(image, quad)           -- quad is optional
-im.Image(image, quad, w, h)     -- dispW, dispH override size
-
--- SelectableImage  — returns selected, clicked
+-- Images
+im.Image(image, quad, dispW, dispH)
 selected = im.SelectableImage("label", image, quad, selected)
-selected = im.SelectableImage("label", image, quad, selected, dispW, dispH)
-
--- ColorPicker  — returns updated color table
--- pass {r,g,b} for RGB or {r,g,b,a} for RGBA — alpha bar appears automatically
-color = im.ColorPicker("Tint", color)
 ```
 
 ### Layout
 
 ```lua
-im.SameLine()           -- next widget on same line
-im.SameLine(spacing)    -- custom gap in pixels
-im.Separator()          -- horizontal divider line
-im.Spacing()            -- extra vertical space
-im.Spacing(20)          -- custom pixels
-im.Indent()             -- indent by style.IndentSpacing
-im.Indent(amount)       -- custom pixels
-im.Unindent()
+im.SameLine(spacing, yOffset) -- place next widget on the same line
+im.Separator()                -- horizontal divider line
+im.Spacing(amount)            -- extra vertical space
+im.Indent(amount)             -- indent widgets
 im.Unindent(amount)
 ```
 
@@ -204,24 +175,24 @@ if im.Begin("Window") then
     if im.BeginMenuBar() then
         if im.BeginMenu("File") then
             if im.MenuItem("Save", "Ctrl+S") then ... end
-            if im.MenuItem("Quit", nil, enabled) then ... end
             im.MenuSeparator()
+            if im.MenuItem("Quit") then ... end
             im.EndMenu()
         end
         im.EndMenuBar()
     end
-    -- widgets
 end
 im.End()
 ```
 
 ### Popups
 
+Popups automatically render *over* other windows and close when the user clicks outside of them.
+
 ```lua
--- trigger
 if im.Button("Open") then im.OpenPopup("Alert##pop") end
 
--- draw (outside any Begin/End is fine)
+-- Draw (can be outside the window that opened it)
 if im.BeginPopup("Alert##pop", {w=240, h=120}) then
     im.Label("Are you sure?")
     if im.Button("OK") then im.ClosePopup("Alert##pop") end
@@ -229,21 +200,14 @@ if im.BeginPopup("Alert##pop", {w=240, h=120}) then
 end
 ```
 
-Popups auto-close when the user clicks outside them.
-
 ### Tooltips
 
 ```lua
--- simple text tooltip on the last widget
+-- Simple text tooltip on the last widget rendered
 if im.Button("Save") then ... end
 im.SetTooltip("Save the file\nCtrl+S")
 
--- check hover manually
-if im.IsItemHovered() then
-    -- do something
-end
-
--- rich tooltip with widgets inside
+-- Rich tooltip with widgets inside
 im.Image(icon, nil, 32, 32)
 if im.BeginTooltip() then
     im.Label("My Icon")
@@ -251,41 +215,16 @@ if im.BeginTooltip() then
 end
 ```
 
-### Style
-
-```lua
--- override colors for a section
-im.PushStyleColor("button",      {0.8, 0.2, 0.2, 1})
-im.PushStyleColor("buttonHover", {1.0, 0.3, 0.3, 1})
-if im.Button("Red") then end
-im.PopStyleColor(2)
-
--- override style vars
-im.PushStyleVar("padding",      16)
-im.PushStyleVar("widgetRound",  8)
-if im.Button("Rounded") then end
-im.PopStyleVar(2)
-
--- switch font for a section
-im.PushFont(bigFont)
-im.Label("Big text")
-im.PopFont()
-```
-
-All color keys are in `im.style.col`. All var keys are in `im.style`.
-
 ### ID System
 
-When multiple widgets share the same label, use `##` to give them distinct IDs:
+When multiple widgets share the exact same label, use `##` to give them distinct underlying IDs so `imlove` can tell them apart:
 
 ```lua
 im.Button("OK##dialog1")
 im.Button("OK##dialog2")
 ```
 
-The part after `##` is the ID, the part before is the display label. Use `###` to make the entire string the ID (display label ignored for ID purposes).
-
-For dynamic lists use `PushID` / `PopID`:
+For dynamic lists, use `PushID` / `PopID` instead of concatenating strings:
 
 ```lua
 for i = 1, 10 do
@@ -295,45 +234,22 @@ for i = 1, 10 do
 end
 ```
 
-### Taskbar
-
-```lua
--- call once per frame, outside Begin/End
-im.Taskbar()
-im.Taskbar({pos="top"})   -- "bottom" (default) or "top"
-
--- exclude a window from the taskbar
-im.Begin("HUD##hud", {noTaskbar=true})
-```
-
-Click behaviour: focused window → minimize, minimized → restore, closed → reopen.
-
-### Pseudo Docking
-
-```lua
--- opt-in per window
-im.Begin("Panel", {dockable=true})
-```
-
-Drag a dockable window near another dockable window or a screen edge — a blue ghost preview appears. Release to snap. Left/right docking matches heights, top/bottom docking matches widths. Drag away to undock.
-
 ### Save / Load Layout
 
 ```lua
-im.SaveLayout()              -- saves to imlove_layout.lua
+im.SaveLayout()              -- saves to 'imlove_layout.lua' in LÖVE save dir
 im.SaveLayout("my_ui.lua")   -- custom filename
 
-im.LoadLayout()              -- loads from imlove_layout.lua
-im.LoadLayout("my_ui.lua")
+im.LoadLayout()              -- loads layout and applies to windows
 ```
 
-Files are written to and read from the LÖVE save directory (`love.filesystem`). Saves: position, size, scroll, open/closed, minimized, and docking state. Call `LoadLayout` after `Init`.
+Call `im.LoadLayout()` during `love.load()` after `im.Init()`. It restores window positions, sizes, and minimized/open states seamlessly.
 
 ---
 
 ## Style Reference
 
-Key entries in `im.style`:
+Key entries in `im.style` you can override:
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -343,38 +259,22 @@ Key entries in `im.style`:
 | `windowPadding` | 10 | Inner window padding |
 | `titleBarH` | 24 | Title bar height |
 | `scrollbarW` | 10 | Scrollbar width |
-| `snapDist` | 14 | Docking snap threshold in px |
-| `taskbarH` | 32 | Taskbar height |
-| `taskbarPos` | `"bottom"` | `"bottom"` or `"top"` |
-| `windowRound` | 6 | Window corner rounding |
-| `widgetRound` | 4 | Widget corner rounding |
-| `font` | default | Set via `Init()`, override with `PushFont` |
+| `windowRound` | 0 | Window corner rounding (0 = square) |
+| `widgetRound` | 0 | Widget corner rounding (0 = square) |
+| `font` | default | Set via `Init()`, override with `im.PushFont` |
 
-Colors live in `im.style.col`. Example:
+Colors live in `im.style.col`. You can override them globally or temporarily using `im.PushStyleColor`:
 
 ```lua
-im.style.col.windowBg = {0.10, 0.10, 0.12, 1.0}
-im.style.col.button   = {0.20, 0.40, 0.80, 1.0}
-```
-
----
-
-## Input Callbacks
-
-Wire these in your `main.lua`:
-
-```lua
-function love.mousepressed(x,y,b)  im.MousePressed(x,y,b)  end
-function love.mousereleased(x,y,b) im.MouseReleased(x,y,b) end
-function love.wheelmoved(x,y)      im.WheelMoved(x,y)       end
-function love.keypressed(k,s)      im.KeyPressed(k,s)        end
-function love.textinput(t)         im.TextInput(t)           end
+im.PushStyleColor("button", {0.8, 0.2, 0.2, 1})
+if im.Button("Red Button") then end
+im.PopStyleColor(1)
 ```
 
 ---
 
 ## License
 
-MIT — see the license header inside `imlove.lua`.
+MIT License — see the license header inside `imlove.lua`.
 
-Copyright (c) 2024 Salem Raddaoui
+Copyright (c) 2024-2026 Salem Raddaoui
