@@ -28,7 +28,7 @@ local bit       = require("bit")
 local utf8      = require("utf8")
 
 local im        = {
-    _VERSION     = "0.3.1",
+    _VERSION     = "0.3.2",
     _DESCRIPTION = "A pure Lua 5.1 immediate-mode UI for LÖVE 2D",
     _URL         = "https://github.com/radda-ui/imlove",
     _LICENSE     = [[
@@ -66,7 +66,7 @@ im.NoScrollbar  = "noScrollbar"
 im.NoBackground = "noBackground"
 im.NoClose      = "noClose"
 im.NoMinimize   = "noMinimize"
-
+im.FitContent   = "fitContent"
 -- ─────────────────────────────────────────────────────────────────────────────
 --  STYLE
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ im.style        = {
     windowPadding  = 10,
     windowMinW     = 120,
     windowMinH     = 60,
-    titleBarH      = 24,
+    titleBarH      = 20,
     scrollbarW     = 10,
     resizeGripSize = 14,
     checkboxSize   = 14,
@@ -141,8 +141,8 @@ im._proto       = {
 
     window = {
         id = "", title = "", x = 0, y = 0, w = 280, h = 300, scrollY = 0, open = true, minimized = false,
-        flags = { noTitleBar = false, noResize = false, noMove = false, noScrollbar = false, noBackground = false, noClose = false, noMinimize = false },
-        inner = nil, cursorX = 0, cursorY = 0, lineH = 0, _pendingLineH = 0, lineStartX = 0, sameLine = false, sameLineSpacing = 0, sameLineOffsetY = 0, widgetY = 0, contentH = 0, _menuBar = nil,
+        flags = { noTitleBar = false, noResize = false, noMove = false, noScrollbar = false, noBackground = false, noClose = false, noMinimize = false ,fitContent = false },
+        inner = nil, cursorX = 0, cursorY = 0, lineH = 0, _pendingLineH = 0, lineStartX = 0, sameLine = false, sameLineSpacing = 0, sameLineOffsetY = 0, widgetY = 0, contentW = 0, contentH = 0, _menuBar = nil,
         dragOffX = 0, dragOffY = 0, _sbGrabOff = 0, drawCmds = nil, _cmdPool = nil, _cmdCount = 0, _indentStack = nil, _baseInnerX = 0, _initDone = false, _isPopup = false,
     },
     label = { x = 0, y = 0, text = "", color = nil },
@@ -236,6 +236,7 @@ end
 function im.Update(dt)
     S.dt          = dt
     S.inputBlinkT = S.inputBlinkT + dt
+
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -252,7 +253,15 @@ function im.PopFont() table.remove(_fontStack); lg.setFont(im._font()) end
 -- ─────────────────────────────────────────────────────────────────────────────
 --  STYLE STACKS
 -- ─────────────────────────────────────────────────────────────────────────────
-function im.PushStyleColor(key, color) table.insert(_colorStack, { key = key, prev = im.style.col[key] }); im.style.col[key] = color end
+function im.PushStyleColor(key, color)
+    if type(key) ~= "string" or not im.style.col[key] then
+        print("[imlove] ERROR: Invalid Style Color Key: " .. tostring(key))
+        return
+    end
+    table.insert(_colorStack, { key = key, prev = im.style.col[key] })
+    -- Copy the values so the user's table reference doesn't mutate the UI
+    im.style.col[key] = { color[1], color[2], color[3], color[4] or 1 }
+end
 function im.PopStyleColor(count)
     for _ = 1, (count or 1) do
         local e = table.remove(_colorStack)
@@ -260,7 +269,15 @@ function im.PopStyleColor(count)
     end
 end
 
-function im.PushStyleVar(key, value) table.insert(_varStack, { key = key, prev = im.style[key] }); im.style[key] = value end
+
+function im.PushStyleVar(key, value)
+    if type(key) ~= "string" or im.style[key] == nil then
+        print("[imlove] ERROR: Invalid Style Var Key: " .. tostring(key))
+        return
+    end
+    table.insert(_varStack, { key = key, prev = im.style[key] })
+    im.style[key] = value
+end
 function im.PopStyleVar(count)
     for _ = 1, (count or 1) do
         local e = table.remove(_varStack)
@@ -276,11 +293,16 @@ function im.MouseReleased(x, y, button) if button <= 3 then S._pendingReleased[b
 function im.WheelMoved(x, y) S._pendingScroll = S._pendingScroll + y end
 function im.KeyPressed(key) table.insert(S._pendingKeys, key) end
 function im.TextInput(text) S._pendingText = S._pendingText .. text end
+function im.resize(w,h)end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  FRAME
 -- ─────────────────────────────────────────────────────────────────────────────
 function im.BeginFrame()
+    -- this prevent stack leak:
+    if #S.idStack > 0 then S.idStack = {}; S._idPrefix = nil end
+    if #_colorStack > 0 then im.PopStyleColor(#_colorStack) end
+    if #_varStack > 0 then im.PopStyleVar(#_varStack) end
     S.frame            = S.frame + 1
     S.tooltipText = nil
     S.hot = nil
@@ -404,7 +426,7 @@ function im.Begin(name, options, ...)
     end
 
     if options.open ~= nil then w.open = options.open end
-
+    -- w._frameStyle = im._captureStyle(w._frameStyle)
     S.currentWindow = w
     if not w.open then return false, false end
 
@@ -440,7 +462,7 @@ function im.Begin(name, options, ...)
         end
     end
 
-    if not flags.noResize then
+    if not flags.noResize and not flags.fitContent then
         local rg = st.resizeGripSize
         local resId = "##resize_" .. id
         local inGrip = im._mouseOwnedBy(w) and im._pointInRect(S.mx, S.my, w.x + w.w - rg, w.y + w.h - rg, rg, rg)
@@ -460,7 +482,8 @@ function im.Begin(name, options, ...)
 
     for i = #w.drawCmds, 1, -1 do w.drawCmds[i] = nil end
     w._cmdCount = 0
-    w.contentH = 0
+    w.contentW = st.windowPadding
+    w.contentH = st.windowPadding
     w.widgetY = 0
     w._menuBar = nil
     for i = #w._indentStack, 1, -1 do w._indentStack[i] = nil end
@@ -487,6 +510,13 @@ function im.End()
     S.currentWindow = nil
     if not w or not w.open or w.minimized then return end
     local st = im.style
+    if w.flags.fitContent then
+        local titleH = w.flags.noTitleBar and 0 or st.titleBarH
+        local mbH = (w._menuBar and w._menuBar.h) or 0
+
+        w.w = math.max(st.windowMinW, w.contentW + st.windowPadding + (w.flags.noScrollbar and 0 or st.scrollbarW))
+        w.h = math.max(st.windowMinH, w.contentH + titleH + mbH + st.windowPadding)
+    end
     local titleH = w.flags.noTitleBar and 0 or st.titleBarH
     local mbH = (w._menuBar and w._menuBar.h) or 0
     local visH = w.h - titleH - mbH - st.windowPadding * 2
@@ -1286,18 +1316,19 @@ function im.Image(image, quad, dispW, dispH)
         im._cmd(w, "imageClip", { image = image, quad = quad, x = x, y = y, sx = dw / iw, sy = dh / ih, clipX = w.x, clipY = w.y, clipW = w.w, clipH = w.h })
     end
 end
-
 function im.SelectableImage(label, image, quad, selected, dispW, dispH)
     local w = S.currentWindow
     if not w then return selected, false end
     local st = im.style
     local font = im._font()
     local lbl, id = im._parseLabel(label)
-
     local d = S.widgets[id]
     if not d then d = _copy(im._proto.selectableImage); S.widgets[id] = d end
-    d.id = id; d.label = lbl; d.image = image; d.quad = quad; d.selected = selected
-
+    d.id = id
+    d.label = lbl
+    d.image = image
+    d.quad = quad
+    d.selected = selected
     local iw, ih
     if quad then
         local _, _, qw, qh = quad:getViewport()
@@ -1307,27 +1338,29 @@ function im.SelectableImage(label, image, quad, selected, dispW, dispH)
     d.h = dispH or ih
     d.sx = d.w / iw
     d.sy = d.h / ih
-
     local th = font:getHeight()
-    local rowW = w.inner.w
+    local rowW = dispW and (dispW + st.padding) or w.inner.w
     local rowH = d.h + st.padding
     local x, y, visible = im._alloc(w, rowW, rowH)
-    d.x = x; d.y = y
+    d.x = x
+    d.y = y
     if not visible then return selected, false end
-
     local hovered, _, clicked = im._btnBehavior(id, x, y, rowW, rowH, w)
     if clicked then selected = not selected end
     local bgCol = selected and st.col.widgetActive or (hovered and st.col.widgetHover or nil)
     if bgCol then im._cmd(w, "rect", { x = x, y = y, w = rowW, h = rowH, color = bgCol, rx = st.widgetRound }) end
-
     local ix = x + st.padding * 0.5
     local iy = y + math.floor((rowH - d.h) * 0.5)
-    im._cmd(w, "imageClip", { image = image, quad = quad, x = ix, y = iy, sx = d.sx, sy = d.sy, clipX = x, clipY = y, clipW = rowW, clipH = rowH })
+    im._cmd(w, "imageClip", { image = image, quad = quad, x = ix, y = iy, sx = d.sx, sy = d.sy, clipX = x, clipY = y, clipW =
+    rowW, clipH = rowH })
     if lbl ~= "" then
-        im._cmd(w, "text", { text = lbl, x = ix + d.w + st.itemSpacingX, y = y + math.floor((rowH - th) * 0.5), color = selected and { 1, 1, 1, 1 } or st.col.text })
+        im._cmd(w, "text",
+            { text = lbl, x = ix + d.w + st.itemSpacingX, y = y + math.floor((rowH - th) * 0.5), color = selected and
+            { 1, 1, 1, 1 } or st.col.text })
     end
     return selected, clicked
 end
+
 
 -- ─────────────────────────────────────────────────────────────────────────────
 --  POPUP
@@ -1579,18 +1612,18 @@ end
 
 function im._cmd(w, kind, data)
     if not w or not w.drawCmds then return end
-    local pool = w._cmdPool
-    local n = w._cmdCount + 1
-    w._cmdCount = n
-    local slot = pool[n]
-    if slot then
-        slot.kind = kind
-        slot.data = data
+    w._cmdCount = w._cmdCount + 1
+
+    -- If the slot doesn't exist, create it (happens only during startup/expanding window)
+    if not w._cmdPool[w._cmdCount] then
+        w._cmdPool[w._cmdCount] = { kind = kind, data = data }
     else
-        slot = { kind = kind, data = data }
-        pool[n] = slot
+        -- RECYCLE: Overwrite the existing table, no allocation!
+        local cmd = w._cmdPool[w._cmdCount]
+        cmd.kind = kind
+        cmd.data = data
     end
-    w.drawCmds[n] = slot
+    w.drawCmds[w._cmdCount] = w._cmdPool[w._cmdCount]
 end
 
 function im._drawFrame(win, x, y, ww, wh, bgCol, borderCol)
@@ -1655,6 +1688,10 @@ function im._allocWidget(w, ww, wh)
         S._lastItemRect = r
     end
     r.x = x; r.y = y; r.w = ww; r.h = wh; r.winId = w.id
+    local localRight = (x + ww) - w.x
+    if localRight > w.contentW then w.contentW = localRight end
+    local localBottom = (y + wh) - w.y + st.windowPadding
+    if localBottom > w.contentH then w.contentH = localBottom end
     return x, y
 end
 
@@ -1696,7 +1733,19 @@ function im._wrapText(font, text, maxW)
     if #lines == 0 then lines[1] = "" end
     return lines
 end
+function im._captureStyle(target)
+    -- If the table doesn't exist yet, create it ONCE
+    if not target then target = { col = {} } end
 
+    for k, v in pairs(im.style) do
+        if k ~= "col" then target[k] = v end
+    end
+    for k, v in pairs(im.style.col) do
+        target.col[k] = v -- Copy reference (extremely fast, 0 allocations)
+    end
+
+    return target
+end
 -- ─────────────────────────────────────────────────────────────────────────────
 --  RENDERING
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -1746,6 +1795,12 @@ local function _execCmd(cmd)
         _safeScissor(d.clipX, d.clipY, d.clipW, d.clipH)
         if d.quad then lg.draw(d.image, d.quad, math.floor(d.x), math.floor(d.y), 0, d.sx or 1, d.sy or 1)
         else lg.draw(d.image, math.floor(d.x), math.floor(d.y), 0, d.sx or 1, d.sy or 1) end
+        if px then lg.setScissor(px, py, pw, ph) else lg.setScissor() end
+    elseif cmd.kind == "meshClip" then
+        lg.setColor(1, 1, 1, 1)
+        local px, py, pw, ph = lg.getScissor()
+        _safeScissor(d.clipX, d.clipY, d.clipW, d.clipH)
+        lg.draw(d.mesh)
         if px then lg.setScissor(px, py, pw, ph) else lg.setScissor() end
     end
 end
@@ -1840,7 +1895,7 @@ function im._renderAll()
             end
         end
 
-        if not flags.noScrollbar then
+        if not flags.noScrollbar and not flags.fitContent then
             local visH = w.h - titleH - mbH - st.windowPadding * 2
             local totH = math.max(visH, w.contentH)
             if totH > visH then
@@ -1868,7 +1923,7 @@ function im._renderAll()
             end
         end
 
-        if not flags.noResize then
+        if not flags.noResize and not flags.fitContent  then
             local rg = st.resizeGripSize
             local inG = im._pointInRect(S.mx, S.my, w.x + w.w - rg, w.y + w.h - rg, rg, rg)
             _c((inG or S.active == "##resize_" .. wid) and st.col.resizeGripHover or st.col.resizeGrip)
